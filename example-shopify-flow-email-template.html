@@ -1,0 +1,373 @@
+<style>
+  body, p, td, div, th, h1, h2, strong { 
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  }
+  
+  p, td, div { 
+    font-size: 1rem;
+    font-weight: 400;
+  }
+  
+  h1 { 
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  
+  h2 { 
+    font-size: 1.15rem;
+    font-weight: 500;
+  }
+  
+  strong {
+    font-weight: 600;
+  }
+  
+  /* Print-specific styles */
+  @media print {
+    .page-break { page-break-after: always; }
+    .no-print { display: none; }
+  }
+  
+  /* Page spacing */
+  .staff-summary { 
+    min-height: 400px;
+  }
+  
+  table { 
+    width: 100%; 
+    border-collapse: collapse; 
+  }
+  
+  .table-bordered th, .table-bordered td {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+  
+  .table-bordered th {
+    background-color: #f5f5f5;
+    font-weight: 600;
+  }
+  
+  .address-columns {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  
+  .address-block {
+    flex: 1;
+  }
+</style>
+
+<!-- ==================== PAGE 1: STAFF SUMMARY ==================== -->
+<div class="staff-summary page-break">
+  <div style="text-align: center; margin-bottom: 2em;">
+    <!-- Replace with your store logo -->
+    <h1 style="margin: 1em 0 0.5em 0; font-size: 2rem;">YOUR STORE NAME</h1>
+    <h2 style="margin: 0.5em 0; color: #666;">New Order Summary</h2>
+  </div>
+
+  <table style="width: 100%; border-collapse: collapse; margin: 2em 0;">
+    <tr style="background-color: #f5f5f5;">
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600; width: 40%;">Order Number</td>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">{{order.name}}</td>
+    </tr>
+    <tr>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Customer</td>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">{{order.customer.firstName}} {{order.customer.lastName}}</td>
+    </tr>
+    <tr style="background-color: #f5f5f5;">
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Email</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">{{order.email}}</td>
+    </tr>
+    <tr>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Phone</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">{{order.phone | default: 'N/A'}}</td>
+    </tr>
+    <tr style="background-color: #f5f5f5;">
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Order Date</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">{{order.createdAt | date: "%B %e, %Y at %I:%M %p"}}</td>
+    </tr>
+    <tr>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Order Total</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">
+        <strong style="font-size: 1.2rem;">${{order.currentTotalPrice}}</strong>
+      </td>
+    </tr>
+    <tr style="background-color: #f5f5f5;">
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Payment Status</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">
+        {% if order.displayFinancialStatus == "Paid" %}
+          <strong style="color: green;">✓ Paid</strong>
+        {% elsif order.displayFinancialStatus == "Pending" %}
+          <strong style="color: orange;">⏳ Pending</strong>
+        {% else %}
+          <strong>{{order.displayFinancialStatus}}</strong>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 1em; border: 1px solid #ddd; font-weight: 600;">Fulfillment Status</td>
+      <td style="padding: 1em; border: 1px solid #ddd;">
+        {% if order.displayFulfillmentStatus == "Unfulfilled" %}
+          <strong style="color: red;">⚠️ Unfulfilled - Requires Packing</strong>
+        {% else %}
+          <strong>{{order.displayFulfillmentStatus}}</strong>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <div style="display: flex; gap: 20px; margin: 2em 0;">
+    <!-- Shipping Address -->
+    <div style="flex: 1; padding: 1.5em; border: 2px solid #333; background-color: #f9f9f9;">
+      <h2 style="margin-top: 0;">📦 Shipping Address</h2>
+      <strong>{{order.shippingAddress.name}}</strong><br/>
+      {{order.shippingAddress.address1}}<br/>
+      {% if order.shippingAddress.address2 != blank %}{{order.shippingAddress.address2}}<br/>{% endif %}
+      {{order.shippingAddress.city}}{% if order.shippingAddress.provinceCode != blank %}, {{order.shippingAddress.provinceCode}}{% endif %} {{order.shippingAddress.zip}}<br/>
+      {{order.shippingAddress.country}}<br/>
+      {% if order.shippingAddress.phone != blank %}Phone: {{order.shippingAddress.phone}}<br/>{% endif %}
+      <br/>
+      <strong>Shipping Method:</strong><br/>
+      {% assign shipping_lower = order.shippingLine.title | downcase %}
+      {% if shipping_lower contains "standard" or shipping_lower contains "economy" %}
+        <span style="background-color: #ffc107; color: #000; padding: 6px 12px; font-weight: 600; display: inline-block; margin-top: 5px; border-radius: 3px;">
+          📬 {{order.shippingLine.title}}
+        </span>
+      {% elsif shipping_lower contains "express" %}
+        <span style="background-color: #ff5722; color: #fff; padding: 6px 12px; font-weight: 600; display: inline-block; margin-top: 5px; border-radius: 3px;">
+          ⚡ {{order.shippingLine.title}}
+        </span>
+      {% elsif shipping_lower contains "pickup" or shipping_lower contains "pick up" %}
+        <span style="background-color: #2196f3; color: #fff; padding: 6px 12px; font-weight: 600; display: inline-block; margin-top: 5px; border-radius: 3px;">
+          🏪 {{order.shippingLine.title}}
+        </span>
+      {% else %}
+        <span style="background-color: #e0e0e0; color: #000; padding: 6px 12px; font-weight: 600; display: inline-block; margin-top: 5px; border-radius: 3px;">
+          {{order.shippingLine.title}}
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- Items Summary -->
+    <div style="flex: 1; padding: 1.5em; border: 2px solid #333; background-color: #fff;">
+      <h2 style="margin-top: 0;">📦 Items in Order</h2>
+      {% for lineItem in order.lineItems %}
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; {% unless forloop.last %}border-bottom: 1px solid #ddd;{% endunless %}">
+          <div style="font-weight: 700; min-width: 40px; font-size: 1.1rem;">×{{lineItem.quantity}}</div>
+          <div style="flex: 1;">
+            <strong>{{lineItem.title}}</strong>
+            {% if lineItem.sku != blank %}<br/><span style="color: #666; font-size: 0.9rem;">SKU: {{lineItem.sku}}</span>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if order.note != blank %}
+  <div style="margin: 2em 0; padding: 1.5em; border: 3px solid #ff9800; background-color: #fff3e0; border-radius: 5px;">
+    <h2 style="margin-top: 0; color: #ff9800;">⚠️ Important Order Note</h2>
+    <p style="margin: 0; font-size: 1.1rem; font-weight: 500;">{{order.note}}</p>
+  </div>
+  {% endif %}
+
+  <p style="text-align: center; margin-top: 3em; font-style: italic; color: #666; font-size: 0.95rem;">
+    → Detailed packing slip and invoice follow on next pages →
+  </p>
+</div>
+
+<!-- ==================== PAGE 2: PACKING SLIP ==================== -->
+<div class="page-break">
+  <div style="display: flex; justify-content: space-between; align-items: start;">
+    <div style="flex: 1;">
+      <h1 style="font-size: 2rem; margin: 0;">YOUR STORE NAME</h1>
+      <p style="margin: 0.5em 0 0 0; color: #666;">www.yourstore.com</p>
+    </div>
+    <div style="text-align: right;">
+      <h1 style="margin: 0; color: #2196f3;">PACKING SLIP</h1>
+      <p style="margin: 0.5em 0 0 0;">
+        Order: <strong>{{order.name}}</strong><br/>
+        Date: {{order.createdAt | date: "%B %e, %Y"}}
+      </p>
+    </div>
+  </div>
+
+  <hr style="margin: 2em 0; border: none; border-top: 2px solid #333;" />
+
+  <div class="address-columns" style="margin-top: 2em;">
+    <div class="address-block">
+      <strong style="font-size: 1.1rem;">SHIP TO:</strong><br/><br/>
+      <strong>{{order.shippingAddress.name}}</strong><br/>
+      {{order.shippingAddress.company}}<br/>
+      {{order.shippingAddress.address1}}<br/>
+      {% if order.shippingAddress.address2 != blank %}{{order.shippingAddress.address2}}<br/>{% endif %}
+      {{order.shippingAddress.city}}{% if order.shippingAddress.provinceCode != blank %}, {{order.shippingAddress.provinceCode}}{% endif %} {{order.shippingAddress.zip}}<br/>
+      {{order.shippingAddress.country}}<br/>
+      {% if order.shippingAddress.phone != blank %}<br/>Phone: {{order.shippingAddress.phone}}{% endif %}
+    </div>
+    <div class="address-block" style="text-align: right;">
+      <strong style="font-size: 1.1rem;">FROM:</strong><br/><br/>
+      <strong>Your Store Name</strong><br/>
+      123 Main Street<br/>
+      City, State 12345<br/>
+      Country<br/>
+      <br/>Phone: (123) 456-7890<br/>
+      Email: orders@yourstore.com
+    </div>
+  </div>
+
+  <h2 style="margin-top: 3em;">Items to Pack</h2>
+  <table class="table-bordered" style="margin: 1em 0;">
+    <thead>
+      <tr>
+        <th style="width: 10%; text-align: center;">Qty</th>
+        <th style="width: 60%;">Item Description</th>
+        <th style="width: 30%; text-align: center;">SKU</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lineItem in order.lineItems %}
+        <tr>
+          <td style="text-align: center; font-weight: 700; font-size: 1.2rem;">{{lineItem.quantity}}</td>
+          <td>
+            <strong>{{lineItem.title}}</strong>
+            {% if lineItem.variantTitle != blank %}<br/>Variant: {{lineItem.variantTitle}}{% endif %}
+          </td>
+          <td style="text-align: center;">
+            {% if lineItem.sku != blank %}<strong>{{lineItem.sku}}</strong>{% else %}N/A{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="margin-top: 3em; padding: 1em; background-color: #f5f5f5; border: 1px solid #ddd;">
+    <p style="margin: 0;"><strong>Shipping Method:</strong> {{order.shippingLine.title}}</p>
+    <p style="margin: 0.5em 0 0 0;"><strong>Total Items:</strong> {{order.lineItems | size}}</p>
+  </div>
+</div>
+
+<!-- ==================== PAGE 3: TAX INVOICE ==================== -->
+<div class="page-break">
+  <div style="display: flex; justify-content: space-between; align-items: start;">
+    <div style="flex: 1;">
+      <h1 style="font-size: 2rem; margin: 0;">YOUR STORE NAME</h1>
+      <p style="margin: 0.5em 0 0 0; color: #666;">
+        Tax ID / ABN: 12 345 678 901<br/>
+        www.yourstore.com
+      </p>
+    </div>
+    <div style="text-align: right;">
+      <h1 style="margin: 0; color: #4caf50;">TAX INVOICE</h1>
+      <p style="margin: 0.5em 0 0 0;">
+        Invoice: <strong>{{order.name}}</strong><br/>
+        Date: {{order.createdAt | date: "%B %e, %Y"}}
+      </p>
+    </div>
+  </div>
+
+  <hr style="margin: 2em 0; border: none; border-top: 2px solid #333;" />
+
+  <div class="address-columns" style="margin-top: 2em;">
+    <div class="address-block">
+      <strong style="font-size: 1.1rem;">BILL TO:</strong><br/><br/>
+      <strong>{{order.billingAddress.name}}</strong><br/>
+      {{order.billingAddress.company}}<br/>
+      {{order.billingAddress.address1}}<br/>
+      {% if order.billingAddress.address2 != blank %}{{order.billingAddress.address2}}<br/>{% endif %}
+      {{order.billingAddress.city}}{% if order.billingAddress.provinceCode != blank %}, {{order.billingAddress.provinceCode}}{% endif %} {{order.billingAddress.zip}}<br/>
+      {{order.billingAddress.country}}
+    </div>
+    <div class="address-block">
+      <strong style="font-size: 1.1rem;">SHIP TO:</strong><br/><br/>
+      <strong>{{order.shippingAddress.name}}</strong><br/>
+      {{order.shippingAddress.address1}}<br/>
+      {% if order.shippingAddress.address2 != blank %}{{order.shippingAddress.address2}}<br/>{% endif %}
+      {{order.shippingAddress.city}}{% if order.shippingAddress.provinceCode != blank %}, {{order.shippingAddress.provinceCode}}{% endif %} {{order.shippingAddress.zip}}<br/>
+      {{order.shippingAddress.country}}
+    </div>
+    <div class="address-block" style="text-align: right;">
+      <strong style="font-size: 1.1rem;">FROM:</strong><br/><br/>
+      <strong>Your Store Name</strong><br/>
+      123 Main Street<br/>
+      City, State 12345<br/>
+      Country<br/>
+      <br/>Phone: (123) 456-7890
+    </div>
+  </div>
+
+  <h2 style="margin-top: 3em;">Invoice Details</h2>
+  <table class="table-bordered" style="margin: 1em 0;">
+    <thead>
+      <tr>
+        <th style="width: 10%; text-align: center;">Qty</th>
+        <th style="width: 50%;">Item</th>
+        <th style="width: 20%; text-align: right;">Unit Price</th>
+        <th style="width: 20%; text-align: right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lineItem in order.lineItems %}
+        <tr>
+          <td style="text-align: center;">{{lineItem.quantity}}</td>
+          <td>
+            <strong>{{lineItem.title}}</strong>
+            {% if lineItem.variantTitle != blank %}<br/><span style="font-size: 0.9rem; color: #666;">{{lineItem.variantTitle}}</span>{% endif %}
+            {% if lineItem.sku != blank %}<br/><span style="font-size: 0.9rem; color: #666;">SKU: {{lineItem.sku}}</span>{% endif %}
+          </td>
+          <td style="text-align: right;">${{lineItem.originalUnitPrice}}</td>
+          <td style="text-align: right; font-weight: 600;">${{lineItem.originalTotalPrice}}</td>
+        </tr>
+      {% endfor %}
+      
+      <!-- Totals Section -->
+      <tr>
+        <td colspan="3" style="text-align: right; font-weight: 600; border-top: 2px solid #333;">Subtotal</td>
+        <td style="text-align: right; border-top: 2px solid #333;">${{order.subtotalPrice}}</td>
+      </tr>
+      
+      {% if order.totalDiscounts > 0 %}
+      <tr>
+        <td colspan="3" style="text-align: right;">
+          Discount{% if order.discountCode != blank %} ({{order.discountCode}}){% endif %}
+        </td>
+        <td style="text-align: right; color: green;">-${{order.totalDiscounts}}</td>
+      </tr>
+      {% endif %}
+      
+      <tr>
+        <td colspan="3" style="text-align: right; font-weight: 600;">Shipping ({{order.shippingLine.title}})</td>
+        <td style="text-align: right;">${{order.totalShippingPrice}}</td>
+      </tr>
+      
+      <tr>
+        <td colspan="3" style="text-align: right; font-weight: 600;">Tax</td>
+        <td style="text-align: right;">${{order.totalTax}}</td>
+      </tr>
+      
+      <tr style="background-color: #f5f5f5;">
+        <td colspan="3" style="text-align: right; font-weight: 700; font-size: 1.2rem; border-top: 3px solid #333;">TOTAL</td>
+        <td style="text-align: right; font-weight: 700; font-size: 1.2rem; border-top: 3px solid #333;">${{order.currentTotalPrice}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 3em; padding: 1.5em; background-color: #e8f5e9; border: 1px solid #4caf50; border-radius: 5px;">
+    <p style="margin: 0; font-weight: 600;">Payment Status: 
+      {% if order.displayFinancialStatus == "Paid" %}
+        <span style="color: green;">✓ PAID IN FULL</span>
+      {% else %}
+        <span>{{order.displayFinancialStatus}}</span>
+      {% endif %}
+    </p>
+    {% if order.note != blank %}
+    <p style="margin: 1em 0 0 0;"><strong>Order Note:</strong> {{order.note}}</p>
+    {% endif %}
+  </div>
+
+  <div style="margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 0.9rem;">
+    <p>Thank you for your business!</p>
+    <p>Questions? Contact us at orders@yourstore.com or call (123) 456-7890</p>
+  </div>
+</div>
