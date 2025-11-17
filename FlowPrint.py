@@ -8,7 +8,7 @@ with a specified subject prefix using Google Chrome.
 Perfect for automated printing of Shopify orders, receipts, labels, and more.
 
 License: GNU General Public License v3.0
-Repository: https://github.com/yourusername/flowprint
+Repository: https://github.com/NotDonaldTrump/FlowPrint
 """
 
 import imaplib
