@@ -776,7 +776,7 @@ A: Not currently. FlowPrint is a console application. Future versions may includ
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/flowprint/issues](https://github.com/NotDonaldTrump/FlowPrint/issues)
+- **Issues:** [GitHub Issues](https://github.com/NotDonaldTrump/FlowPrint/issues)
 
 ---
 
