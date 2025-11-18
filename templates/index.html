@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowPrint - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <h1>FlowPrint</h1>
+            </div>
+            <div class="header-actions">
+                <button id="themeToggle" class="btn btn-icon" onclick="toggleTheme()" title="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+                <button id="manualCheckBtn" class="btn btn-secondary" onclick="manualCheck()" title="Manually check inbox now">
+                    🔄 Check Now
+                </button>
+                <button id="startBtn" class="btn btn-success" onclick="startService()">
+                    <span class="icon">▶</span> Start
+                </button>
+                <button id="stopBtn" class="btn btn-danger" onclick="stopService()" disabled>
+                    <span class="icon">■</span> Stop
+                </button>
+            </div>
+        </header>
+
+        <!-- Status Banner - Slimmer Design -->
+        <div id="statusBanner" class="status-banner status-stopped">
+            <div class="status-main">
+                <span class="status-dot"></span>
+                <span id="statusText">Service Stopped</span>
+            </div>
+            <div class="status-time">
+                <span id="nextCheckDisplay">--:--:--</span>
+            </div>
+            <div class="countdown-mini" id="countdownMini" style="display: none;">
+                <span id="countdownTime">--</span>
+                <div class="countdown-progress-mini">
+                    <div id="countdownBar" class="countdown-bar-mini"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Left Column: Configuration -->
+            <div class="config-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>⚙️ Configuration</h2>
+                        <div class="header-buttons">
+                            <button class="btn btn-small btn-secondary" onclick="window.open('https://github.com/NotDonaldTrump/FlowPrint#readme', '_blank')">
+                                📚 Docs
+                            </button>
+                            <button class="btn btn-small btn-primary" onclick="saveConfig()">
+                                💾 Save
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="tabs">
+                            <button class="tab-btn active" onclick="switchTab('email')">📧 Email</button>
+                            <button class="tab-btn" onclick="switchTab('behavior')">🔧 Behavior</button>
+                            <button class="tab-btn" onclick="switchTab('advanced')">⚙️ Advanced</button>
+                        </div>
+
+                        <!-- Email Settings Tab -->
+                        <div id="emailTab" class="tab-content active">
+                            <div class="form-group">
+                                <label for="imapHost">IMAP Server</label>
+                                <input type="text" id="imapHost" placeholder="imap.gmail.com">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="imapPort">Port</label>
+                                    <input type="number" id="imapPort" value="993">
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="imapUseSsl" checked>
+                                        Use SSL
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="imapUsername">Email Address</label>
+                                <input type="email" id="imapUsername" placeholder="your-email@example.com">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="imapPassword">Password / App Password</label>
+                                <input type="password" id="imapPassword" placeholder="Enter password">
+                                <small>For Gmail, use an App Password</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="mailbox">Mailbox Folder</label>
+                                <input type="text" id="mailbox" value="Inbox">
+                            </div>
+
+                            <button class="btn btn-secondary btn-full" onclick="testConnection()">
+                                🔌 Test Connection
+                            </button>
+                        </div>
+
+                        <!-- Behavior Settings Tab -->
+                        <div id="behaviorTab" class="tab-content">
+                            <div class="form-group">
+                                <label for="subjectPrefix">Subject Filter Prefix</label>
+                                <input type="text" id="subjectPrefix" value="[PRINT PACK]">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="pollInterval">Check Interval (seconds)</label>
+                                <input type="number" id="pollInterval" value="30" min="5" max="600">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="autoPrint" checked>
+                                    <span><strong>Auto-Print Mode</strong></span>
+                                </label>
+                            </div>
+
+                            <div class="form-group warning-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="deleteAfterPrint">
+                                    <span><strong>⚠️ Delete Email After Print</strong></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Settings Tab -->
+                        <div id="advancedTab" class="tab-content">
+                            <div class="form-group">
+                                <label for="chromePath">Chrome Path (optional)</label>
+                                <input type="text" id="chromePath" placeholder="Auto-detect">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="chromeWait">Print Wait Time (seconds)</label>
+                                <input type="number" id="chromeWait" value="8" min="3" max="30">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="cleanupEnabled" checked>
+                                    <span><strong>Auto-Cleanup Temp Files</strong></span>
+                                </label>
+                            </div>
+
+                            <div class="form-group" id="cleanupHoursGroup">
+                                <label for="cleanupHours">Cleanup After (hours)</label>
+                                <input type="number" id="cleanupHours" value="6" min="1" max="168">
+                                <small>Files older than this will be auto-deleted</small>
+                            </div>
+
+                            <button class="btn btn-danger btn-full" onclick="clearCache()">
+                                🗑️ Clear Temp Files Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Status & Monitoring -->
+            <div class="monitor-panel">
+                <!-- Statistics Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📊 Statistics</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="messagesFound">0</div>
+                                <div class="stat-label">Messages</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="jobsProcessed">0</div>
+                                <div class="stat-label">Processed</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="jobsPending">0</div>
+                                <div class="stat-label">Pending</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Jobs Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📋 Recent Jobs</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentJobs" class="jobs-list">
+                            <div class="empty-state">No jobs yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Errors Card -->
+                <div class="card" id="errorsCard" style="display: none;">
+                    <div class="card-header">
+                        <h2>⚠️ Errors</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentErrors" class="errors-list"></div>
+                    </div>
+                </div>
+
+                <!-- Activity Log Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📝 Activity Log</h2>
+                        <button class="btn btn-small btn-secondary" onclick="refreshLogs()">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="activityLog" class="log-viewer">
+                            <div class="empty-state">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="footer">
+                    <p>
+                        <a href="https://github.com/NotDonaldTrump/FlowPrint" target="_blank">GitHub</a> • 
+                        <a href="https://github.com/NotDonaldTrump/FlowPrint#readme" target="_blank">Documentation</a> • 
+                        <a href="https://github.com/NotDonaldTrump/FlowPrint/issues" target="_blank">Report Issue</a>
+                    </p>
+                    <p class="disclaimer">No direct support provided. Please use GitHub Issues for assistance.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
