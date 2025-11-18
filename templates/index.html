@@ -68,6 +68,8 @@
                             <button class="tab-btn active" onclick="switchTab('email')">📧 Email</button>
                             <button class="tab-btn" onclick="switchTab('behavior')">🔧 Behavior</button>
                             <button class="tab-btn" onclick="switchTab('advanced')">⚙️ Advanced</button>
+                            <button class="tab-btn" onclick="switchTab('webhook')">🔗 Webhook</button>
+                            <button class="tab-btn" onclick="switchTab('templates')">📄 Templates</button>
                         </div>
 
                         <!-- Email Settings Tab -->
@@ -113,12 +115,36 @@
 
                         <!-- Behavior Settings Tab -->
                         <div id="behaviorTab" class="tab-content">
+
+                            <div class="info-banner info-blue">
+                                <h3>📡 Operation Mode</h3>
+                                <p>Choose how FlowPrint should receive print jobs</p>
+                            </div>
+
                             <div class="form-group">
+                                <label for="operationMode">Print Job Source</label>
+                                <select id="operationMode" class="mode-selector">
+                                    <option value="email_only">📧 Email Only</option>
+                                    <option value="webhook_only">🔗 Webhook Only (Recommended)</option>
+                                    <option value="email_primary">📧 Email Primary → 🔗 Webhook Backup</option>
+                                    <option value="webhook_primary">🔗 Webhook Primary → 📧 Email Backup</option>
+                                </select>
+                                <small>
+                                    <strong>Email Only:</strong> Monitor email for print jobs<br>
+                                    <strong>Webhook Only:</strong> Receive jobs via Shopify webhook (faster, more secure)<br>
+                                    <strong>Primary/Backup:</strong> If primary fails, automatically use backup method
+                                </small>
+                            </div>
+
+                            <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                            <h3 style="margin-bottom: 10px;">Email Settings</h3>
+                            <div class="form-group" id="subjectPrefixGroup">
                                 <label for="subjectPrefix">Subject Filter Prefix</label>
                                 <input type="text" id="subjectPrefix" value="[PRINT PACK]">
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" id="pollIntervalGroup">
                                 <label for="pollInterval">Check Interval (seconds)</label>
                                 <input type="number" id="pollInterval" value="30" min="5" max="600">
                             </div>
@@ -166,6 +192,179 @@
                             <button class="btn btn-danger btn-full" onclick="clearCache()">
                                 🗑️ Clear Temp Files Now
                             </button>
+
+                            <hr style="margin: 30px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                            <h3 style="margin-bottom: 15px;">🔐 Security</h3>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="authEnabled">
+                                    <span><strong>Enable Password Protection</strong></span>
+                                </label>
+                                <small>Require login to access the dashboard</small>
+                            </div>
+
+                            <div class="form-group" id="authUsernameGroup" style="display: none;">
+                                <label for="authUsername">Username</label>
+                                <input type="text" id="authUsername" value="admin">
+                            </div>
+
+                            <div class="form-group" id="authPasswordGroup" style="display: none;">
+                                <label for="authPassword">Password</label>
+                                <input type="password" id="authPassword" placeholder="Set a password">
+                                <small>⚠️ Remember this password! You will need it to log in.</small>
+                            </div>
+
+                            <div class="form-group" style="display: none;" id="logoutGroup">
+                                <button class="btn btn-secondary btn-full" onclick="window.location.href='/logout'">🚪 Logout</button>
+                            </div>
+
+                            <hr style="margin: 30px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                            <div class="form-group">
+                                <button class="btn btn-reset btn-full" onclick="resetToDefaults()">🔄 Reset All Settings to Default</button>
+                                <small>⚠️ This will require admin password and reset ALL settings</small>
+                            </div>
+
+                            <div class="form-group">
+                                <button class="btn btn-secondary btn-full" onclick="downloadLogs()">💾 Save System Logs</button>
+                                <small>Download activity logs and system information</small>
+                            </div>
+                        </div>
+
+                        <!-- Webhook Settings Tab -->
+                        <div id="webhookTab" class="tab-content">
+                            <div class="info-banner info-blue">
+                                <h3>ℹ️ How Webhooks Work</h3>
+                                <p>Webhooks allow Shopify to instantly send order data to FlowPrint (instead of email polling).</p>
+                                <ul>
+                                    <li><strong>Faster:</strong> 1-3 seconds vs 10-30 seconds</li>
+                                    <li><strong>More Reliable:</strong> Direct HTTP connection</li>
+                                    <li><strong>No Email Required:</strong> Works without email account</li>
+                                </ul>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="webhookEnabled">
+                                    <span><strong>Enable Webhook Receiver</strong></span>
+                                </label>
+                                <small>Turn this on after configuring Shopify webhooks</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="webhookSecret">Webhook Secret</label>
+                                <input type="password" id="webhookSecret" placeholder="Get this from Shopify Admin">
+                                <small>Find in: <strong>Shopify Admin → Settings → Notifications → Webhooks</strong></small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="webhookTemplate">Template to Use</label>
+                                <select id="webhookTemplate">
+                                    <option value="default_packing_slip.html">Default Packing Slip</option>
+                                </select>
+                                <small>Choose which template to use for printing orders</small>
+                            </div>
+
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="webhookAutoPrint" checked>
+                                    <span><strong>Auto-Print Mode</strong></span>
+                                </label>
+                                <small>If unchecked, Chrome will open with the print dialog (manual mode)</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="webhookPrintWaitSeconds">Print Wait Time (seconds)</label>
+                                <input type="number" id="webhookPrintWaitSeconds" value="8" min="3" max="30">
+                                <small>How long to wait before closing Chrome (auto-print mode only)</small>
+                            </div>
+                            <div class="info-panel">
+                                <h3>📋 Shopify Setup Instructions</h3>
+                                
+                                <div class="setup-step">
+                                    <h4>Step 1: Get Your Webhook URL</h4>
+                                    <div class="input-copy-group">
+                                        <input type="text" id="webhookUrl" readonly 
+                                               value="http://your-ip:5000/api/webhook/shopify"
+                                               style="font-family: monospace;">
+                                        <button onclick="copyWebhookUrl()" class="btn btn-secondary">📋 Copy</button>
+                                    </div>
+                                    <small>⚠️ <strong>Important:</strong> Replace "your-ip" with your public IP or use ngrok</small>
+                                </div>
+
+                                <div class="setup-step">
+                                    <h4>Step 2: Create Webhook in Shopify</h4>
+                                    <ol>
+                                        <li>Go to <strong>Shopify Admin → Settings → Notifications</strong></li>
+                                        <li>Scroll to <strong>Webhooks</strong> section</li>
+                                        <li>Click <strong>"Create webhook"</strong></li>
+                                        <li><strong>Event:</strong> Order creation</li>
+                                        <li><strong>Format:</strong> JSON</li>
+                                        <li><strong>URL:</strong> Paste your webhook URL</li>
+                                        <li><strong>Copy the secret</strong> and paste it above</li>
+                                    </ol>
+                                </div>
+
+                                <div class="setup-step">
+                                    <h4>Step 3: Test Connection</h4>
+                                    <button onclick="testWebhook()" class="btn btn-primary">
+                                        🧪 Send Test Print
+                                    </button>
+                                    <small>This will print a sample order to verify everything works</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Templates Tab -->
+                        <div id="templatesTab" class="tab-content">
+                            <div class="info-banner info-orange">
+                                <h3>✏️ Template Editor</h3>
+                                <p>Create and edit HTML templates for printing orders. Templates use Jinja2 syntax (similar to Shopify Liquid).</p>
+                                <p><strong>Available Variables:</strong> <code>order</code>, <code>now</code>, <code>format_currency</code>, <code>format_date</code></p>
+                            </div>
+
+                            <div class="template-controls">
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="templateSelector">Select Template</label>
+                                    <select id="templateSelector" onchange="loadTemplate()">
+                                        <option value="">-- Select Template --</option>
+                                    </select>
+                                </div>
+                                
+                                <div style="display: flex; gap: 10px; align-items: end;">
+                                    <button onclick="createNewTemplate()" class="btn btn-secondary">➕ New</button>
+                                    <button onclick="deleteTemplate()" class="btn btn-danger">🗑️ Delete</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="templateName">Template Name</label>
+                                <input type="text" id="templateName" placeholder="e.g., order_packing_slip.html">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="templateContent">Template HTML</label>
+                                <textarea id="templateContent" 
+                                          style="font-family: 'Courier New', monospace; min-height: 400px; width: 100%;"
+                                          placeholder="Enter your HTML template here..."></textarea>
+                                <small>
+                                    <strong>Quick Reference:</strong><br>
+                                    {% raw %}
+                                    • Access data: <code>{{ order.name }}</code>, <code>{{ order.customer.email }}</code><br>
+                                    • Loop items: <code>{% for item in order.line_items %} ... {% endfor %}</code><br>
+                                    • Conditionals: <code>{% if order.note %} ... {% endif %}</code>
+                                
+                                    {% endraw %}</small>
+                            </div>
+
+                            <div class="template-actions">
+                                <button onclick="previewTemplate()" class="btn btn-secondary">👁️ Preview</button>
+                                <button onclick="testPrintTemplate()" class="btn btn-secondary">🖨️ Test Print</button>
+                                <button onclick="saveTemplate()" class="btn btn-primary">💾 Save Template</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -250,5 +449,126 @@
     <div id="toast" class="toast"></div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+// Webhook Functions
+function copyWebhookUrl() {
+    const urlInput = document.getElementById('webhookUrl');
+    urlInput.select();
+    document.execCommand('copy');
+    showToast('Webhook URL copied!', 'success');
+}
+
+function testWebhook() {
+    showToast('Sending test print...', 'info');
+    fetch('/api/webhook/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Test print sent! Check your printer.', 'success');
+        } else {
+            showToast('Test failed: ' + data.error, 'error');
+        }
+    })
+    .catch(error => showToast('Error: ' + error, 'error'));
+}
+
+// Template Functions
+let currentTemplates = [];
+
+function loadTemplatesList() {
+    fetch('/api/templates')
+        .then(response => response.json())
+        .then(data => {
+            currentTemplates = data.templates;
+            const selector = document.getElementById('templateSelector');
+            const webhookSelector = document.getElementById('webhookTemplate');
+            selector.innerHTML = '<option value="">-- Select Template --</option>';
+            webhookSelector.innerHTML = '';
+            data.templates.forEach(template => {
+                selector.add(new Option(template, template));
+                webhookSelector.add(new Option(template, template));
+            });
+        })
+        .catch(error => showToast('Error loading templates', 'error'));
+}
+
+function loadTemplate() {
+    const templateName = document.getElementById('templateSelector').value;
+    if (!templateName) return;
+    fetch('/api/templates/' + templateName)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('templateName').value = data.name;
+            document.getElementById('templateContent').value = data.content;
+        })
+        .catch(error => showToast('Error loading template: ' + error, 'error'));
+}
+
+function saveTemplate() {
+    const name = document.getElementById('templateName').value;
+    const content = document.getElementById('templateContent').value;
+    if (!name || !content) {
+        showToast('Please enter template name and content', 'error');
+        return;
+    }
+    fetch('/api/templates/' + name, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Template saved!', 'success');
+            loadTemplatesList();
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => showToast('Error: ' + error, 'error'));
+}
+
+function createNewTemplate() {
+    document.getElementById('templateSelector').value = '';
+    document.getElementById('templateName').value = '';
+    document.getElementById('templateContent').value = '';
+    showToast('Enter template name and HTML', 'info');
+}
+
+function deleteTemplate() {
+    const name = document.getElementById('templateSelector').value;
+    if (!name) {
+        showToast('Please select a template', 'error');
+        return;
+    }
+    if (confirm('Delete ' + name + '?')) {
+        showToast('Delete functionality coming soon', 'info');
+    }
+}
+
+function testPrintTemplate() {
+    testWebhook();
+}
+
+function previewTemplate() {
+    const content = document.getElementById('templateContent').value;
+    if (!content) {
+        showToast('No template content', 'error');
+        return;
+    }
+    const preview = window.open('', '_blank');
+    preview.document.write(content);
+    preview.document.close();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplatesList();
+});
+
+</script>
+
 </body>
 </html>

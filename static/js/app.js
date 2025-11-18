@@ -21,9 +21,50 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('cleanupHoursGroup').style.display = this.checked ? 'block' : 'none';
     });
     
+    // Auth toggle
+    document.getElementById("authEnabled").addEventListener("change", function() {
+        const enabled = this.checked;
+        document.getElementById("authUsernameGroup").style.display = enabled ? "block" : "none";
+        document.getElementById("authPasswordGroup").style.display = enabled ? "block" : "none";
+        if (!enabled) {
+            document.getElementById("logoutGroup").style.display = "none";
+        }
+    });
+    
     // Load status every 5 seconds as fallback
     setInterval(loadStatus, 5000);
 });
+
+// ============================================
+// FIXED: Tab Switching Function
+// ============================================
+
+function switchTab(tabName) {
+    // Remove active from all tab contents
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active from all tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Activate selected tab content
+    const selectedTab = document.getElementById(tabName + 'Tab');
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+    }
+    
+    // Activate the corresponding button
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        const onclick = btn.getAttribute('onclick');
+        if (onclick && onclick.includes("'" + tabName + "'")) {
+            btn.classList.add('active');
+        }
+    });
+}
+
 
 // ============================================
 // Theme Management
@@ -92,6 +133,28 @@ function populateConfigForm(config) {
     // Show/hide cleanup hours based on enabled state
     document.getElementById('cleanupHoursGroup').style.display = 
         (config.temp_file_cleanup_enabled !== false) ? 'block' : 'none';
+    
+    // Webhook settings
+    document.getElementById("webhookEnabled").checked = config.webhook_enabled === true;
+    document.getElementById("webhookSecret").value = config.webhook_secret || "";
+    document.getElementById("webhookTemplate").value = config.webhook_template || "default_packing_slip.html";
+    document.getElementById("webhookAutoPrint").checked = config.webhook_auto_print !== false;
+    document.getElementById("webhookPrintWaitSeconds").value = config.webhook_print_wait_seconds || 8;
+    
+    // Operation mode
+    document.getElementById("operationMode").value = config.operation_mode || "email_only";
+    updateUIForMode(); // Update UI based on mode
+    
+    // Authentication settings
+    document.getElementById("authEnabled").checked = config.auth_enabled === true;
+    document.getElementById("authUsername").value = config.auth_username || "admin";
+    document.getElementById("authPassword").value = config.auth_password || "";
+    
+    // Show/hide auth fields
+    const authEnabled = config.auth_enabled === true;
+    document.getElementById("authUsernameGroup").style.display = authEnabled ? "block" : "none";
+    document.getElementById("authPasswordGroup").style.display = authEnabled ? "block" : "none";
+    document.getElementById("logoutGroup").style.display = authEnabled && config.auth_password ? "block" : "none";
 }
 
 function getConfigFromForm() {
@@ -112,7 +175,16 @@ function getConfigFromForm() {
         temp_file_cleanup_hours: parseInt(document.getElementById('cleanupHours').value),
         printed_uids_file: 'printed_uids.txt',
         log_file: 'flowprint.log',
-        theme: document.documentElement.getAttribute('data-theme')
+        webhook_enabled: document.getElementById("webhookEnabled").checked,
+        webhook_secret: document.getElementById("webhookSecret").value.trim(),
+        webhook_template: document.getElementById("webhookTemplate").value,
+        webhook_auto_print: document.getElementById("webhookAutoPrint").checked,
+        webhook_print_wait_seconds: parseInt(document.getElementById("webhookPrintWaitSeconds").value),
+        theme: document.documentElement.getAttribute('data-theme'),
+        operation_mode: document.getElementById("operationMode").value,
+        auth_enabled: document.getElementById("authEnabled").checked,
+        auth_username: document.getElementById("authUsername").value.trim(),
+        auth_password: document.getElementById("authPassword").value,
     };
 }
 
@@ -120,9 +192,33 @@ async function saveConfig() {
     try {
         const config = getConfigFromForm();
         
-        if (!config.imap_host || !config.imap_username || !config.imap_password) {
-            showToast('Please fill in all required email settings', 'error');
-            return;
+        const mode = config.operation_mode;
+        
+        // Validate based on operation mode
+        if (mode === "email_only" || mode === "email_primary") {
+            if (!config.imap_host || !config.imap_username || !config.imap_password) {
+                showToast("Please fill in email settings for " + mode.replace("_", " ") + " mode", "error");
+                return;
+            }
+        }
+        
+        if (mode === "webhook_only" || mode === "webhook_primary") {
+            if (!config.webhook_secret) {
+                showToast("Please fill in webhook secret for " + mode.replace("_", " ") + " mode", "error");
+                return;
+            }
+        }
+        
+        // Both modes need both configs filled
+        if (mode === "email_primary" || mode === "webhook_primary") {
+            if (!config.imap_host || !config.imap_username || !config.imap_password) {
+                showToast("Email settings required for backup/failover mode", "error");
+                return;
+            }
+            if (!config.webhook_secret) {
+                showToast("Webhook secret required for backup/failover mode", "error");
+                return;
+            }
         }
         
         const response = await fetch('/api/config', {
@@ -241,14 +337,17 @@ async function manualCheck() {
     }
 }
 
-async function reprintJob(tempFile) {
+async function reprintJob(tempFile, source) {
     try {
         showToast('Reprinting...', 'warning');
         
         const response = await fetch('/api/reprint', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ temp_file: tempFile })
+            body: JSON.stringify({ 
+                temp_file: tempFile,
+                source: source || 'email'
+            })
         });
         
         const result = await response.json();
@@ -311,6 +410,9 @@ function updateUI(data) {
         statusBanner.classList.add('status-running');
         statusText.textContent = data.status;
         manualCheckBtn.disabled = false;
+        
+        // Update UI based on operation mode
+        updateStatusBanner();
     } else {
         statusBanner.classList.add('status-stopped');
         statusText.textContent = 'Service Stopped';
@@ -355,7 +457,7 @@ function updateRecentJobs(jobs) {
             </div>
             <div class="job-actions">
                 ${job.can_reprint ? 
-                    `<button class="btn-reprint" onclick="reprintJob('${job.temp_file}')">🖨️ Reprint</button>` : 
+                    `<button class="btn-reprint" onclick="reprintJob('${job.temp_file}', '${job.source || 'email'}')">🖨️ Reprint</button>` : 
                     `<button class="btn-reprint" disabled title="File has been cleaned up">🖨️</button>`
                 }
             </div>
@@ -501,19 +603,20 @@ function setupWebSocket() {
             stats: data.stats
         });
     });
+    
+    socket.on("webhook_processing", (data) => {
+        if (data.status === "processing") {
+            setWebhookProcessing(true);
+        } else if (data.status === "complete") {
+            setWebhookProcessing(false);
+        }
+    });
 }
 
 // ============================================
 // UI Helpers
 // ============================================
 
-function switchTab(tabName) {
-    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    
-    document.getElementById(tabName + 'Tab').classList.add('active');
-    event.target.classList.add('active');
-}
 
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
@@ -551,3 +654,161 @@ document.addEventListener('keydown', function(e) {
 // ============================================
 
 window.addEventListener('beforeunload', () => stopCountdown());
+// ============================================
+// Operation Mode Management
+// ============================================
+
+function updateUIForMode() {
+    const mode = document.getElementById('operationMode').value;
+    const pollIntervalGroup = document.getElementById('pollIntervalGroup');
+    const subjectPrefixGroup = document.getElementById('subjectPrefixGroup');
+    const emailSettingsHeader = document.getElementById('emailSettingsHeader');
+    
+    // Hide email-specific settings for webhook-only mode
+    if (mode === 'webhook_only') {
+        if (pollIntervalGroup) pollIntervalGroup.style.display = 'none';
+        if (subjectPrefixGroup) subjectPrefixGroup.style.display = 'none';
+        if (emailSettingsHeader) emailSettingsHeader.style.display = 'none';
+    } else {
+        if (pollIntervalGroup) pollIntervalGroup.style.display = 'block';
+        if (subjectPrefixGroup) subjectPrefixGroup.style.display = 'block';
+        if (emailSettingsHeader) emailSettingsHeader.style.display = 'block';
+    }
+    
+    updateStatusBanner();
+}
+
+function updateStatusBanner() {
+    const mode = currentConfig.operation_mode || 'email_only';  // Use actual config, not form value
+    const statusBanner = document.getElementById('statusBanner');
+    const statusText = document.getElementById('statusText');
+    const nextCheckDisplay = document.getElementById('nextCheckDisplay');
+    const countdownMini = document.getElementById('countdownMini');
+    
+    if (!isServiceRunning) return;
+    
+    if (mode === 'webhook_only') {
+        // Webhook-only mode - show waiting status
+        if (statusText) statusText.innerHTML = '<span class="webhook-status">Waiting for Webhook</span>';
+        if (nextCheckDisplay) nextCheckDisplay.style.display = 'none';
+        if (countdownMini) countdownMini.style.display = 'none';
+        if (statusBanner) {
+            statusBanner.classList.remove('status-running', 'status-processing');
+            statusBanner.classList.add('status-waiting');
+        }
+    } else if (mode === 'webhook_primary') {
+        // Webhook primary - show waiting status but with fallback note
+        if (statusText) statusText.innerHTML = '<span class="webhook-status">Waiting for Webhook (Email Fallback Active)</span>';
+        if (nextCheckDisplay) nextCheckDisplay.style.display = 'none';
+        if (countdownMini) countdownMini.style.display = 'none';
+        if (statusBanner) {
+            statusBanner.classList.remove('status-running', 'status-processing');
+            statusBanner.classList.add('status-waiting');
+        }
+    }
+}
+
+// Set processing status
+function setWebhookProcessing(processing) {
+    const statusText = document.getElementById('statusText');
+    const statusBanner = document.getElementById('statusBanner');
+    
+    if (processing) {
+        if (statusText) statusText.innerHTML = '<span class="webhook-status processing">Processing Webhook</span>';
+        if (statusBanner) {
+            statusBanner.classList.remove('status-waiting');
+            statusBanner.classList.add('status-processing');
+        }
+    } else {
+        updateStatusBanner();
+    }
+}
+
+// ============================================
+// Reset to Defaults
+// ============================================
+
+async function resetToDefaults() {
+    const config = currentConfig || {};
+    
+    // Check if auth is enabled
+    if (config.auth_enabled && config.auth_password) {
+        const password = prompt('⚠️ Enter admin password to reset all settings:');
+        if (!password) return;
+        
+        // Verify password
+        if (password !== config.auth_password) {
+            showToast('❌ Incorrect password', 'error');
+            return;
+        }
+    }
+    
+    // Confirm reset
+    if (!confirm('Are you sure you want to reset ALL settings to default?\n\nThis cannot be undone!')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/config/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('✓ Settings reset to defaults. Reloading...', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast('Failed to reset: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error resetting settings', 'error');
+    }
+}
+
+// ============================================
+// Download Logs
+// ============================================
+
+async function downloadLogs() {
+    try {
+        showToast('Preparing logs...', 'info');
+        
+        const response = await fetch('/api/logs/download');
+        
+        if (!response.ok) {
+            throw new Error('Failed to download logs');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `flowprint_logs_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('✓ Logs downloaded', 'success');
+    } catch (error) {
+        showToast('Error downloading logs', 'error');
+    }
+}
+
+// ============================================
+// Enhanced DOMContentLoaded
+// ============================================
+
+// Add to existing DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing code...
+    
+    // Operation mode change handler
+    const operationMode = document.getElementById('operationMode');
+    if (operationMode) {
+        operationMode.addEventListener('change', updateUIForMode);
+        updateUIForMode(); // Initial update
+    }
+});
